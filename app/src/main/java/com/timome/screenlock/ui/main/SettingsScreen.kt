@@ -62,9 +62,15 @@ private sealed class SettingsRoute {
 @Composable
 fun SettingsScreen(
     settingsDataStore: SettingsDataStore,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onSubmenuActive: (Boolean) -> Unit = {}
 ) {
     var currentRoute by remember { mutableStateOf<SettingsRoute>(SettingsRoute.Main) }
+
+    // 通知外部是否在子菜单
+    LaunchedEffect(currentRoute) {
+        onSubmenuActive(currentRoute !is SettingsRoute.Main)
+    }
 
     when (currentRoute) {
         is SettingsRoute.Main -> SettingsMainMenu(

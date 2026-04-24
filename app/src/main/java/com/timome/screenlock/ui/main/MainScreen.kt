@@ -1,8 +1,12 @@
 package com.timome.screenlock.ui.main
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
@@ -58,6 +62,9 @@ fun MainScreen(
         label = "settingsRotation"
     )
 
+    // 是否在子菜单中（用于禁用 Pager 滑动）
+    var settingsSubmenuActive by remember { mutableStateOf(false) }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
@@ -105,13 +112,30 @@ fun MainScreen(
     ) { innerPadding ->
         HorizontalPager(
             state = pagerState,
+            userScrollEnabled = !settingsSubmenuActive,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) { page ->
-            when (page) {
-                0 -> LaunchScreen(settingsDataStore = settingsDataStore)
-                1 -> SettingsScreen(settingsDataStore = settingsDataStore)
+            // 页面切换过渡动画
+            AnimatedContent(
+                targetState = page,
+                transitionSpec = {
+                    fadeIn(animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    )) togetherWith fadeOut()
+                },
+                label = "pageTransition"
+            ) { targetPage ->
+                when (targetPage) {
+                    0 -> LaunchScreen(settingsDataStore = settingsDataStore)
+                    1 -> SettingsScreen(
+                        settingsDataStore = settingsDataStore,
+                        onSubmenuActive = { settingsSubmenuActive = it }
+                    )
+                    else -> LaunchScreen(settingsDataStore = settingsDataStore)
+                }
             }
         }
     }
