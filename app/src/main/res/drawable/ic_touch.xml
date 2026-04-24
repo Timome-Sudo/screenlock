@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Finger pressing down icon -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M9,11.5V5.5C9,4.67 9.67,4 10.5,4S12,4.67 12,5.5V10H13V3.5C13,2.67 13.67,2 14.5,2S16,2.67 16,3.5V10H17V4.5C17,3.67 17.67,3 18.5,3S20,3.67 20,4.5V14C20,17.31 17.31,20 14,20H12.5C10.26,20 8.29,18.66 7.51,16.67L5.67,11.83C5.35,11 5.73,10.07 6.56,9.72C7.34,9.39 8.22,9.73 8.58,10.47L9,11.5Z" />
+</vector>
