@@ -169,8 +169,8 @@ class FloatingBallService : Service() {
         if (floatingBallView != null) return
 
         val params = WindowManager.LayoutParams(
-            100,
-            100,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             } else {
