@@ -198,6 +198,8 @@ class FloatingBallService : Service() {
             private var initialY = 0
             private var initialTouchX = 0f
             private var initialTouchY = 0f
+            private var startTime = 0L
+            private var isLongPress = false
 
             override fun onTouch(v: View, event: MotionEvent): Boolean {
                 when (event.action) {
@@ -206,23 +208,38 @@ class FloatingBallService : Service() {
                         initialY = params.y
                         initialTouchX = event.rawX
                         initialTouchY = event.rawY
+                        startTime = System.currentTimeMillis()
+                        isLongPress = false
                         return true
                     }
                     MotionEvent.ACTION_MOVE -> {
-                        params.x = initialX + (event.rawX - initialTouchX).toInt()
-                        params.y = initialY + (event.rawY - initialTouchY).toInt()
-                        windowManager.updateViewLayout(floatingBallView, params)
+                        // 计算移动距离
+                        val deltaX = Math.abs(event.rawX - initialTouchX)
+                        val deltaY = Math.abs(event.rawY - initialTouchY)
+                        
+                        // 如果移动距离超过阈值，认为是拖动
+                        if (deltaX > 10 || deltaY > 10) {
+                            params.x = initialX + (event.rawX - initialTouchX).toInt()
+                            params.y = initialY + (event.rawY - initialTouchY).toInt()
+                            windowManager.updateViewLayout(floatingBallView, params)
+                        }
                         return true
                     }
                     MotionEvent.ACTION_UP -> {
-                        // 点击悬浮球，启动锁屏服务
-                        LockScreenService.startService(
-                            this@FloatingBallService,
-                            0,
-                            _longPressDurationMs.value,
-                            _positions.value
-                        )
-                        stopFloatingBall()
+                        val pressDuration = System.currentTimeMillis() - startTime
+                        
+                        // 如果按下时间超过设定的长按时间，启动锁屏服务
+                        if (pressDuration >= _longPressDurationMs.value) {
+                            isLongPress = true
+                            // 长按悬浮球，启动锁屏服务
+                            LockScreenService.startService(
+                                this@FloatingBallService,
+                                0,
+                                _longPressDurationMs.value,
+                                _positions.value
+                            )
+                            stopFloatingBall()
+                        }
                         return true
                     }
                 }
