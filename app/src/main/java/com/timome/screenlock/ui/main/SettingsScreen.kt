@@ -1,10 +1,18 @@
 package com.timome.screenlock.ui.main
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
@@ -85,31 +93,54 @@ fun SettingsScreen(
         onNavigate?.invoke(newRoute)
     }
 
-    when (currentSettingsRoute) {
-        is com.timome.screenlock.ui.main.SettingsRoute.Main -> SettingsMainMenu(
-            settingsDataStore = settingsDataStore,
-            onNavigate = navigateTo,
-            modifier = modifier
-        )
-        is com.timome.screenlock.ui.main.SettingsRoute.LongPress -> LongPressSettings(
-            settingsDataStore = settingsDataStore,
-            onBack = { navigateTo(com.timome.screenlock.ui.main.SettingsRoute.Main) },
-            modifier = modifier
-        )
-        is com.timome.screenlock.ui.main.SettingsRoute.ThemeManagement -> ThemeSettings(
-            settingsDataStore = settingsDataStore,
-            onBack = { navigateTo(com.timome.screenlock.ui.main.SettingsRoute.Main) },
-            modifier = modifier
-        )
-        is com.timome.screenlock.ui.main.SettingsRoute.About -> AboutPage(
-            onBack = { navigateTo(com.timome.screenlock.ui.main.SettingsRoute.Main) },
-            modifier = modifier
-        )
-        else -> SettingsMainMenu(
-            settingsDataStore = settingsDataStore,
-            onNavigate = navigateTo,
-            modifier = modifier
-        )
+    // 子页面切换过渡动画
+    AnimatedContent(
+        targetState = currentSettingsRoute,
+        transitionSpec = {
+            val targetOffset = if (targetState is com.timome.screenlock.ui.main.SettingsRoute.Main) -1 else 1
+            val initialOffset = if (targetState is com.timome.screenlock.ui.main.SettingsRoute.Main) 1 else -1
+            slideInHorizontally(
+                animationSpec = tween(
+                    durationMillis = 300,
+                    easing = LinearOutSlowInEasing
+                ),
+                initialOffsetX = { fullWidth -> fullWidth * initialOffset }
+            ) togetherWith slideOutHorizontally(
+                animationSpec = tween(
+                    durationMillis = 300,
+                    easing = FastOutLinearInEasing
+                ),
+                targetOffsetX = { fullWidth -> fullWidth * targetOffset }
+            )
+        },
+        label = "settingsPageTransition"
+    ) {
+        when (it) {
+            is com.timome.screenlock.ui.main.SettingsRoute.Main -> SettingsMainMenu(
+                settingsDataStore = settingsDataStore,
+                onNavigate = navigateTo,
+                modifier = modifier
+            )
+            is com.timome.screenlock.ui.main.SettingsRoute.LongPress -> LongPressSettings(
+                settingsDataStore = settingsDataStore,
+                onBack = { navigateTo(com.timome.screenlock.ui.main.SettingsRoute.Main) },
+                modifier = modifier
+            )
+            is com.timome.screenlock.ui.main.SettingsRoute.ThemeManagement -> ThemeSettings(
+                settingsDataStore = settingsDataStore,
+                onBack = { navigateTo(com.timome.screenlock.ui.main.SettingsRoute.Main) },
+                modifier = modifier
+            )
+            is com.timome.screenlock.ui.main.SettingsRoute.About -> AboutPage(
+                onBack = { navigateTo(com.timome.screenlock.ui.main.SettingsRoute.Main) },
+                modifier = modifier
+            )
+            else -> SettingsMainMenu(
+                settingsDataStore = settingsDataStore,
+                onNavigate = navigateTo,
+                modifier = modifier
+            )
+        }
     }
 }
 

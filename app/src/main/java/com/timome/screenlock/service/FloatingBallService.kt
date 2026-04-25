@@ -169,8 +169,8 @@ class FloatingBallService : Service() {
         if (floatingBallView != null) return
 
         val params = WindowManager.LayoutParams(
-            120,
-            120,
+            100,
+            100,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             } else {
@@ -186,6 +186,12 @@ class FloatingBallService : Service() {
 
         val inflater = LayoutInflater.from(this)
         floatingBallView = inflater.inflate(R.layout.layout_floating_ball, null)
+
+        // 获取应用主题色并设置到锁图标
+        val typedValue = android.util.TypedValue()
+        theme.resolveAttribute(android.R.attr.colorPrimary, typedValue, true)
+        val primaryColor = typedValue.data
+        floatingBallView?.findViewById<android.widget.ImageView>(R.id.lockIcon)?.setColorFilter(primaryColor)
 
         floatingBallView?.setOnTouchListener(object : View.OnTouchListener {
             private var initialX = 0

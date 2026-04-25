@@ -16,6 +16,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
+/**
+ * 扩展函数，返回颜色的负值（反色）
+ */
+private fun Color.inverted(): Color {
+    val r = 1.0f - red
+    val g = 1.0f - green
+    val b = 1.0f - blue
+    return Color(r, g, b, alpha)
+}
+
 private val DarkColorScheme = darkColorScheme(
     primary = Purple80,
     secondary = PurpleGrey80,
@@ -44,10 +54,34 @@ fun ScreenlockTheme(
 
     val finalScheme = if (inverted) {
         colorScheme.copy(
-            primary = colorScheme.secondary,
-            secondary = colorScheme.primary,
-            primaryContainer = colorScheme.secondaryContainer,
-            secondaryContainer = colorScheme.primaryContainer
+            primary = colorScheme.primary.inverted(),
+            onPrimary = colorScheme.onPrimary.inverted(),
+            primaryContainer = colorScheme.primaryContainer.inverted(),
+            onPrimaryContainer = colorScheme.onPrimaryContainer.inverted(),
+            secondary = colorScheme.secondary.inverted(),
+            onSecondary = colorScheme.onSecondary.inverted(),
+            secondaryContainer = colorScheme.secondaryContainer.inverted(),
+            onSecondaryContainer = colorScheme.onSecondaryContainer.inverted(),
+            tertiary = colorScheme.tertiary.inverted(),
+            onTertiary = colorScheme.onTertiary.inverted(),
+            tertiaryContainer = colorScheme.tertiaryContainer.inverted(),
+            onTertiaryContainer = colorScheme.onTertiaryContainer.inverted(),
+            background = colorScheme.background.inverted(),
+            onBackground = colorScheme.onBackground.inverted(),
+            surface = colorScheme.surface.inverted(),
+            onSurface = colorScheme.onSurface.inverted(),
+            surfaceVariant = colorScheme.surfaceVariant.inverted(),
+            onSurfaceVariant = colorScheme.onSurfaceVariant.inverted(),
+            error = colorScheme.error.inverted(),
+            onError = colorScheme.onError.inverted(),
+            errorContainer = colorScheme.errorContainer.inverted(),
+            onErrorContainer = colorScheme.onErrorContainer.inverted(),
+            outline = colorScheme.outline.inverted(),
+            outlineVariant = colorScheme.outlineVariant.inverted(),
+            scrim = colorScheme.scrim.inverted(),
+            inverseSurface = colorScheme.inverseSurface.inverted(),
+            inverseOnSurface = colorScheme.inverseOnSurface.inverted(),
+            inversePrimary = colorScheme.inversePrimary.inverted()
         )
     } else {
         colorScheme
