@@ -198,6 +198,7 @@ class FloatingBallService : Service() {
             private var initialY = 0
             private var initialTouchX = 0f
             private var initialTouchY = 0f
+            private var isDragging = false
 
             override fun onTouch(v: View, event: MotionEvent): Boolean {
                 when (event.action) {
@@ -206,23 +207,36 @@ class FloatingBallService : Service() {
                         initialY = params.y
                         initialTouchX = event.rawX
                         initialTouchY = event.rawY
+                        isDragging = false
                         return true
                     }
                     MotionEvent.ACTION_MOVE -> {
+                        // 计算移动距离
+                        val distanceX = Math.abs(event.rawX - initialTouchX)
+                        val distanceY = Math.abs(event.rawY - initialTouchY)
+                        
+                        // 如果移动距离超过一定阈值，则认为是拖动
+                        if (distanceX > 10 || distanceY > 10) {
+                            isDragging = true
+                        }
+                        
                         params.x = initialX + (event.rawX - initialTouchX).toInt()
                         params.y = initialY + (event.rawY - initialTouchY).toInt()
                         windowManager.updateViewLayout(floatingBallView, params)
                         return true
                     }
                     MotionEvent.ACTION_UP -> {
-                        // 点击悬浮球，启动锁屏服务
-                        LockScreenService.startService(
-                            this@FloatingBallService,
-                            0,
-                            _longPressDurationMs.value,
-                            _positions.value
-                        )
-                        stopFloatingBall()
+                        // 只有在不是拖动的情况下才启动服务
+                        if (!isDragging) {
+                            // 点击悬浮球，启动锁屏服务
+                            LockScreenService.startService(
+                                this@FloatingBallService,
+                                0,
+                                _longPressDurationMs.value,
+                                _positions.value
+                            )
+                            stopFloatingBall()
+                        }
                         return true
                     }
                 }
