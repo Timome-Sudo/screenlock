@@ -386,6 +386,9 @@ class LockScreenService : Service() {
                 if (position != null && enabledPositions.value.contains(position)) {
                     activeTouches[pointerId] = position
                     checkSimultaneousLongPress()
+                } else {
+                    // 点击非解锁区域，提示已锁定
+                    android.widget.Toast.makeText(this, "屏幕已被锁定！", android.widget.Toast.LENGTH_SHORT).show()
                 }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {

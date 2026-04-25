@@ -1,8 +1,13 @@
 package com.timome.screenlock.ui.main
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import com.timome.screenlock.R
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -60,7 +65,8 @@ import java.util.Calendar
 @Composable
 fun LaunchScreen(
     settingsDataStore: SettingsDataStore,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onNavigateToPermissions: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -71,6 +77,11 @@ fun LaunchScreen(
     )
     var isServiceRunning by remember { mutableStateOf(false) }
     var isTimerRunning by remember { mutableStateOf(false) }
+
+    // 权限检查相关
+    var showPermissionDialog by remember { mutableStateOf(false) }
+    var missingPermissions by remember { mutableStateOf<List<String>>(emptyList()) }
+    var pendingAction by remember { mutableStateOf<(() -> Unit)?>(null) }
 
     // 观察服务端状态，自动同步 UI
     val isCountdownActive by LockScreenService.countdownActive.collectAsState(initial = false)
@@ -88,6 +99,18 @@ fun LaunchScreen(
     }
 
     val isAnyServiceRunning = isTimerRunning || isServiceRunning
+
+    // 检查权限
+    fun checkPermissionsAndExecute(action: () -> Unit) {
+        val missing = checkMissingPermissions(context)
+        if (missing.isNotEmpty()) {
+            missingPermissions = missing
+            pendingAction = action
+            showPermissionDialog = true
+        } else {
+            action()
+        }
+    }
 
     Column(
         modifier = modifier
@@ -170,7 +193,8 @@ fun LaunchScreen(
                     context = context,
                     settingsDataStore = settingsDataStore,
                     isTimerRunning = isTimerRunning,
-                    onTimerStateChange = { isTimerRunning = it }
+                    onTimerStateChange = { isTimerRunning = it },
+                    checkPermissionsAndExecute = ::checkPermissionsAndExecute
                 )
             }
             ServiceMode.COUNTDOWN -> {
@@ -178,14 +202,16 @@ fun LaunchScreen(
                     context = context,
                     settingsDataStore = settingsDataStore,
                     isTimerRunning = isTimerRunning,
-                    onTimerStateChange = { isTimerRunning = it }
+                    onTimerStateChange = { isTimerRunning = it },
+                    checkPermissionsAndExecute = ::checkPermissionsAndExecute
                 )
             }
             ServiceMode.NOTIFICATION -> {
                 NotificationModeButtons(
                     context = context,
                     isServiceRunning = isServiceRunning,
-                    onServiceStateChange = { isServiceRunning = it }
+                    onServiceStateChange = { isServiceRunning = it },
+                    checkPermissionsAndExecute = ::checkPermissionsAndExecute
                 )
             }
             ServiceMode.FLOATING_BALL -> {
@@ -193,11 +219,73 @@ fun LaunchScreen(
                     context = context,
                     settingsDataStore = settingsDataStore,
                     isServiceRunning = isServiceRunning,
-                    onServiceStateChange = { isServiceRunning = it }
+                    onServiceStateChange = { isServiceRunning = it },
+                    checkPermissionsAndExecute = ::checkPermissionsAndExecute
                 )
             }
         }
     }
+
+    // 权限缺失弹窗
+    if (showPermissionDialog) {
+        PermissionMissingDialog(
+            missingPermissions = missingPermissions,
+            onDismiss = {
+                showPermissionDialog = false
+                pendingAction = null
+            },
+            onGoToPermissions = {
+                showPermissionDialog = false
+                onNavigateToPermissions()
+            }
+        )
+    }
+}
+
+private fun checkMissingPermissions(context: Context): List<String> {
+    val missing = mutableListOf<String>()
+
+    // 悬浮窗权限
+    if (!Settings.canDrawOverlays(context)) {
+        missing.add("悬浮窗")
+    }
+
+    return missing
+}
+
+@Composable
+private fun PermissionMissingDialog(
+    missingPermissions: List<String>,
+    onDismiss: () -> Unit,
+    onGoToPermissions: () -> Unit
+) {
+    val permissionText = missingPermissions.joinToString("、")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "权限缺失",
+                style = MaterialTheme.typography.headlineSmall
+            )
+        },
+        text = {
+            Text(
+                text = "缺少 ${permissionText} 权限，请点击「去授权」按键前往权限管理界面授权！",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        },
+        confirmButton = {
+            Button(onClick = onGoToPermissions) {
+                Text("去授权")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消")
+            }
+        }
+    )
 }
 
 @Composable
@@ -217,7 +305,7 @@ private fun ModeCard(
     }
     val animatedColor by animateColorAsState(
         targetValue = targetColor,
-        animationSpec = tween(durationMillis = 300),
+        animationSpec = tween(durationMillis = 300, easing = LinearOutSlowInEasing),
         label = "modeCardColor"
     )
     val scale by animateFloatAsState(
@@ -266,7 +354,8 @@ private fun TimerModeButtons(
     context: Context,
     settingsDataStore: SettingsDataStore,
     isTimerRunning: Boolean,
-    onTimerStateChange: (Boolean) -> Unit
+    onTimerStateChange: (Boolean) -> Unit,
+    checkPermissionsAndExecute: (() -> Unit) -> Unit
 ) {
     val scope = rememberCoroutineScope()
     var showTimePicker by remember { mutableStateOf(false) }
@@ -312,20 +401,22 @@ private fun TimerModeButtons(
                                 target.add(Calendar.DAY_OF_YEAR, 1)
                             }
 
-                            scope.launch {
-                                val longPressDuration =
-                                    settingsDataStore.longPressDurationMs.first()
-                                val positions = settingsDataStore.enabledPositions.first()
-                                    .map { LockScreenService.Position.valueOf(it.name) }
-                                    .toSet()
+                            checkPermissionsAndExecute {
+                                scope.launch {
+                                    val longPressDuration =
+                                        settingsDataStore.longPressDurationMs.first()
+                                    val positions = settingsDataStore.enabledPositions.first()
+                                        .map { LockScreenService.Position.valueOf(it.name) }
+                                        .toSet()
 
-                                LockScreenService.startServiceAtTime(
-                                    context,
-                                    target.timeInMillis,
-                                    longPressDuration.toLong(),
-                                    positions
-                                )
-                                onTimerStateChange(true)
+                                    LockScreenService.startServiceAtTime(
+                                        context,
+                                        target.timeInMillis,
+                                        longPressDuration.toLong(),
+                                        positions
+                                    )
+                                    onTimerStateChange(true)
+                                }
                             }
                             showTimePicker = false
                         }) {
@@ -375,7 +466,8 @@ private fun CountdownModeButtons(
     context: Context,
     settingsDataStore: SettingsDataStore,
     isTimerRunning: Boolean,
-    onTimerStateChange: (Boolean) -> Unit
+    onTimerStateChange: (Boolean) -> Unit,
+    checkPermissionsAndExecute: (() -> Unit) -> Unit
 ) {
     val scope = rememberCoroutineScope()
     var showDialog by remember { mutableStateOf(false) }
@@ -491,19 +583,21 @@ private fun CountdownModeButtons(
                         val secs = secondsText.toIntOrNull() ?: 0
                         val totalMs = (hours * 3600L + mins * 60L + secs) * 1000L
                         if (totalMs > 0) {
-                            scope.launch {
-                                val longPressDuration =
-                                    settingsDataStore.longPressDurationMs.first()
-                                val positions = settingsDataStore.enabledPositions.first()
-                                    .map { LockScreenService.Position.valueOf(it.name) }
-                                    .toSet()
-                                LockScreenService.startService(
-                                    context,
-                                    totalMs,
-                                    longPressDuration.toLong(),
-                                    positions
-                                )
-                                onTimerStateChange(true)
+                            checkPermissionsAndExecute {
+                                scope.launch {
+                                    val longPressDuration =
+                                        settingsDataStore.longPressDurationMs.first()
+                                    val positions = settingsDataStore.enabledPositions.first()
+                                        .map { LockScreenService.Position.valueOf(it.name) }
+                                        .toSet()
+                                    LockScreenService.startService(
+                                        context,
+                                        totalMs,
+                                        longPressDuration.toLong(),
+                                        positions
+                                    )
+                                    onTimerStateChange(true)
+                                }
                             }
                         }
                         showDialog = false
@@ -558,7 +652,8 @@ private fun CountdownModeButtons(
 private fun NotificationModeButtons(
     context: Context,
     isServiceRunning: Boolean,
-    onServiceStateChange: (Boolean) -> Unit
+    onServiceStateChange: (Boolean) -> Unit,
+    checkPermissionsAndExecute: (() -> Unit) -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -567,15 +662,17 @@ private fun NotificationModeButtons(
         if (!isServiceRunning) {
             Button(
                 onClick = {
-                    NotificationHelper.createChannels(context)
-                    val notification = NotificationHelper.createNotificationModeNotification(context)
-                    val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE)
-                            as android.app.NotificationManager
-                    notificationManager.notify(
-                        NotificationHelper.NOTIFICATION_ID_MODE,
-                        notification
-                    )
-                    onServiceStateChange(true)
+                    checkPermissionsAndExecute {
+                        NotificationHelper.createChannels(context)
+                        val notification = NotificationHelper.createNotificationModeNotification(context)
+                        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE)
+                                as android.app.NotificationManager
+                        notificationManager.notify(
+                            NotificationHelper.NOTIFICATION_ID_MODE,
+                            notification
+                        )
+                        onServiceStateChange(true)
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -613,7 +710,8 @@ private fun FloatingBallModeButtons(
     context: Context,
     settingsDataStore: SettingsDataStore,
     isServiceRunning: Boolean,
-    onServiceStateChange: (Boolean) -> Unit
+    onServiceStateChange: (Boolean) -> Unit,
+    checkPermissionsAndExecute: (() -> Unit) -> Unit
 ) {
     val scope = rememberCoroutineScope()
 
@@ -624,18 +722,20 @@ private fun FloatingBallModeButtons(
         if (!isServiceRunning) {
             Button(
                 onClick = {
-                    scope.launch {
-                        val longPressDuration = settingsDataStore.longPressDurationMs.first()
-                        val positions = settingsDataStore.enabledPositions.first()
-                            .map { LockScreenService.Position.valueOf(it.name) }
-                            .toSet()
+                    checkPermissionsAndExecute {
+                        scope.launch {
+                            val longPressDuration = settingsDataStore.longPressDurationMs.first()
+                            val positions = settingsDataStore.enabledPositions.first()
+                                .map { LockScreenService.Position.valueOf(it.name) }
+                                .toSet()
 
-                        FloatingBallService.startService(
-                            context,
-                            longPressDuration.toLong(),
-                            positions
-                        )
-                        onServiceStateChange(true)
+                            FloatingBallService.startService(
+                                context,
+                                longPressDuration.toLong(),
+                                positions
+                            )
+                            onServiceStateChange(true)
+                        }
                     }
                 },
                 modifier = Modifier

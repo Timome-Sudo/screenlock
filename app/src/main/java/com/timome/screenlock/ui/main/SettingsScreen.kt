@@ -8,7 +8,12 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,6 +24,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
@@ -41,6 +47,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -49,47 +57,57 @@ import androidx.compose.ui.unit.dp
 import com.timome.screenlock.R
 import com.timome.screenlock.data.LongPressPosition
 import com.timome.screenlock.data.SettingsDataStore
+import com.timome.screenlock.ui.main.SettingsRoute
 import kotlinx.coroutines.launch
 
-// ========== 导航状态 ==========
-private sealed class SettingsRoute {
-    data object Main : SettingsRoute()
-    data object LongPress : SettingsRoute()
-    data object Spring : SettingsRoute()
-    data object About : SettingsRoute()
-}
+
 
 @Composable
 fun SettingsScreen(
     settingsDataStore: SettingsDataStore,
     modifier: Modifier = Modifier,
+    currentRoute: com.timome.screenlock.ui.main.SettingsRoute? = null,
+    onNavigate: ((com.timome.screenlock.ui.main.SettingsRoute) -> Unit)? = null,
     onSubmenuActive: (Boolean) -> Unit = {}
 ) {
-    var currentRoute by remember { mutableStateOf<SettingsRoute>(SettingsRoute.Main) }
-
-    // 通知外部是否在子菜单
-    LaunchedEffect(currentRoute) {
-        onSubmenuActive(currentRoute !is SettingsRoute.Main)
+    var internalRoute by remember { mutableStateOf<com.timome.screenlock.ui.main.SettingsRoute>(com.timome.screenlock.ui.main.SettingsRoute.Main) }
+    
+    // 如果外部传入了路由，使用外部路由
+    val currentSettingsRoute = currentRoute ?: internalRoute
+    
+    // 当内部路由变化时，通知外部
+    LaunchedEffect(currentSettingsRoute) {
+        onSubmenuActive(currentSettingsRoute !is com.timome.screenlock.ui.main.SettingsRoute.Main)
+    }
+    
+    val navigateTo: (com.timome.screenlock.ui.main.SettingsRoute) -> Unit = { newRoute ->
+        internalRoute = newRoute
+        onNavigate?.invoke(newRoute)
     }
 
-    when (currentRoute) {
-        is SettingsRoute.Main -> SettingsMainMenu(
+    when (currentSettingsRoute) {
+        is com.timome.screenlock.ui.main.SettingsRoute.Main -> SettingsMainMenu(
             settingsDataStore = settingsDataStore,
-            onNavigate = { currentRoute = it },
+            onNavigate = navigateTo,
             modifier = modifier
         )
-        is SettingsRoute.LongPress -> LongPressSettings(
+        is com.timome.screenlock.ui.main.SettingsRoute.LongPress -> LongPressSettings(
             settingsDataStore = settingsDataStore,
-            onBack = { currentRoute = SettingsRoute.Main },
+            onBack = { navigateTo(com.timome.screenlock.ui.main.SettingsRoute.Main) },
             modifier = modifier
         )
-        is SettingsRoute.Spring -> SpringSettings(
+        is com.timome.screenlock.ui.main.SettingsRoute.ThemeManagement -> ThemeSettings(
             settingsDataStore = settingsDataStore,
-            onBack = { currentRoute = SettingsRoute.Main },
+            onBack = { navigateTo(com.timome.screenlock.ui.main.SettingsRoute.Main) },
             modifier = modifier
         )
-        is SettingsRoute.About -> AboutPage(
-            onBack = { currentRoute = SettingsRoute.Main },
+        is com.timome.screenlock.ui.main.SettingsRoute.About -> AboutPage(
+            onBack = { navigateTo(com.timome.screenlock.ui.main.SettingsRoute.Main) },
+            modifier = modifier
+        )
+        else -> SettingsMainMenu(
+            settingsDataStore = settingsDataStore,
+            onNavigate = navigateTo,
             modifier = modifier
         )
     }
@@ -99,7 +117,7 @@ fun SettingsScreen(
 @Composable
 private fun SettingsMainMenu(
     settingsDataStore: SettingsDataStore,
-    onNavigate: (SettingsRoute) -> Unit,
+    onNavigate: (com.timome.screenlock.ui.main.SettingsRoute) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
@@ -112,8 +130,9 @@ private fun SettingsMainMenu(
     val longPressDuration by settingsDataStore.longPressDurationMs.collectAsState(
         initial = SettingsDataStore.DEFAULT_LONG_PRESS_DURATION_MS
     )
-    val springDamping by settingsDataStore.springDampingRatio.collectAsState(
-        initial = SettingsDataStore.DEFAULT_SPRING_DAMPING_RATIO
+    
+    val themeDarkMode by settingsDataStore.themeDarkMode.collectAsState(
+        initial = SettingsDataStore.DEFAULT_THEME_DARK_MODE
     )
 
     // 构建子标题
@@ -128,8 +147,13 @@ private fun SettingsMainMenu(
         append((longPressDuration / 1000).toInt())
         append("秒")
     }
-
-    val springSubtitle = "回弹力度: ${springDampingLabel(springDamping)}"
+    
+    val darkModeLabel = when (themeDarkMode) {
+        "light" -> "浅色"
+        "dark" -> "深色"
+        else -> "自动"
+    }
+    val themeSubtitle = "主题: $darkModeLabel"
 
     Column(
         modifier = modifier
@@ -158,16 +182,16 @@ private fun SettingsMainMenu(
             iconRes = R.drawable.ic_touch,
             title = "长按设置",
             subtitle = longPressSubtitle,
-            onClick = { onNavigate(SettingsRoute.LongPress) }
+            onClick = { onNavigate(com.timome.screenlock.ui.main.SettingsRoute.LongPress) }
         )
 
         Spacer(modifier = Modifier.height(12.dp))
 
         SettingCategoryCard(
-            iconRes = R.drawable.ic_spring,
-            title = "弹簧动画",
-            subtitle = springSubtitle,
-            onClick = { onNavigate(SettingsRoute.Spring) }
+            iconRes = R.drawable.ic_palette,
+            title = "主题设置",
+            subtitle = themeSubtitle,
+            onClick = { onNavigate(com.timome.screenlock.ui.main.SettingsRoute.ThemeManagement) }
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -176,7 +200,7 @@ private fun SettingsMainMenu(
             iconRes = R.drawable.ic_info,
             title = "关于",
             subtitle = "版本 1.0",
-            onClick = { onNavigate(SettingsRoute.About) }
+            onClick = { onNavigate(com.timome.screenlock.ui.main.SettingsRoute.About) }
         )
     }
 }
@@ -401,22 +425,31 @@ private fun LongPressSettings(
     }
 }
 
-// ========== 弹簧动画设置 ==========
+// ========== 主题设置 ==========
 @Composable
-private fun SpringSettings(
+private fun ThemeSettings(
     settingsDataStore: SettingsDataStore,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
-    val springDamping by settingsDataStore.springDampingRatio.collectAsState(
-        initial = SettingsDataStore.DEFAULT_SPRING_DAMPING_RATIO
+    val scrollState = rememberScrollState()
+    
+    val themeDarkMode by settingsDataStore.themeDarkMode.collectAsState(
+        initial = SettingsDataStore.DEFAULT_THEME_DARK_MODE
+    )
+    val themeInverted by settingsDataStore.themeInverted.collectAsState(
+        initial = SettingsDataStore.DEFAULT_THEME_INVERTED
     )
 
+    
+    val systemDarkTheme = isSystemInDarkTheme()
+    
     Column(
         modifier = modifier
             .fillMaxSize()
             .padding(16.dp)
+            .verticalScroll(scrollState)
     ) {
         TextButton(onClick = onBack) {
             Text("< 返回")
@@ -425,7 +458,7 @@ private fun SpringSettings(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "弹簧动画",
+            text = "主题设置",
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onSurface
         )
@@ -433,91 +466,149 @@ private fun SpringSettings(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "调整全局弹簧回弹力度",
+            text = "自定义应用的主题外观",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
+        // 深色模式切换
         Text(
-            text = "回弹力度",
+            text = "深色模式",
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface
         )
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        // 深色模式选项
         Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("强", style = MaterialTheme.typography.bodySmall)
-            Slider(
-                value = springDamping,
-                onValueChange = {
-                    scope.launch { settingsDataStore.setSpringDampingRatio(it) }
+            DarkModeOptionCard(
+                label = "自动",
+                selected = themeDarkMode == "auto",
+                onClick = {
+                    scope.launch { settingsDataStore.setThemeDarkMode("auto") }
                 },
-                valueRange = 0.1f..1.0f,
-                steps = 8,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 8.dp)
+                modifier = Modifier.weight(1f)
             )
-            Text("弱", style = MaterialTheme.typography.bodySmall)
+            DarkModeOptionCard(
+                label = "浅色",
+                selected = themeDarkMode == "light",
+                onClick = {
+                    scope.launch { settingsDataStore.setThemeDarkMode("light") }
+                },
+                modifier = Modifier.weight(1f)
+            )
+            DarkModeOptionCard(
+                label = "深色",
+                selected = themeDarkMode == "dark",
+                onClick = {
+                    scope.launch { settingsDataStore.setThemeDarkMode("dark") }
+                },
+                modifier = Modifier.weight(1f)
+            )
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        Text(
-            text = "当前: ${springDampingLabel(springDamping)}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+        // 反色开关
+        ThemeToggleCard(
+            title = "反色",
+            description = "交换主色和次色",
+            checked = themeInverted,
+            onCheckedChange = { enabled ->
+                scope.launch { settingsDataStore.setThemeInverted(enabled) }
+            }
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+    }
+}
 
-        // 预览卡片
-        Text(
-            text = "预览",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        var previewSelected by remember { mutableStateOf(false) }
-        val previewScale by animateFloatAsState(
-            targetValue = if (previewSelected) 1.05f else 1f,
-            animationSpec = spring(
-                dampingRatio = springDamping,
-                stiffness = Spring.StiffnessMediumLow
-            ),
-            label = "previewScale"
-        )
-
-        Card(
-            onClick = { previewSelected = !previewSelected },
+@Composable
+private fun DarkModeOptionCard(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val containerColor = if (selected) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerLow
+    }
+    
+    Card(
+        onClick = onClick,
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = containerColor)
+    ) {
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .graphicsLayer { scaleX = previewScale; scaleY = previewScale },
-            colors = CardDefaults.cardColors(
-                containerColor = if (previewSelected) {
-                    MaterialTheme.colorScheme.primaryContainer
+                .padding(vertical = 12.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                ),
+                color = if (selected) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
                 } else {
-                    MaterialTheme.colorScheme.surfaceContainerLow
+                    MaterialTheme.colorScheme.onSurface
                 }
             )
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "点击预览弹簧效果",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            }
         }
     }
 }
+
+@Composable
+private fun ThemeToggleCard(
+    title: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange
+            )
+        }
+    }
+}
+
+
 
 // ========== 关于页面 ==========
 @Composable
@@ -738,14 +829,6 @@ private fun PositionCard(
             )
         }
     }
-}
-
-private fun springDampingLabel(ratio: Float): String = when {
-    ratio <= 0.2f -> "极强"
-    ratio <= 0.4f -> "强"
-    ratio <= 0.6f -> "中"
-    ratio <= 0.8f -> "弱"
-    else -> "无"
 }
 
 /**

@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -32,10 +33,14 @@ class SettingsDataStore(private val context: Context) {
         val POSITION_BOTTOM_LEFT = booleanPreferencesKey("position_bottom_left")
         val POSITION_BOTTOM_RIGHT = booleanPreferencesKey("position_bottom_right")
         val SPRING_DAMPING_RATIO = floatPreferencesKey("spring_damping_ratio")
+        val THEME_INVERTED = booleanPreferencesKey("theme_inverted")
+        val THEME_DARK_MODE = stringPreferencesKey("theme_dark_mode")
 
         const val DEFAULT_TIMER_DURATION_MS = 300000f // 5分钟
         const val DEFAULT_LONG_PRESS_DURATION_MS = 3000f // 3秒
         const val DEFAULT_SPRING_DAMPING_RATIO = 0.5f // MediumBouncy
+        const val DEFAULT_THEME_INVERTED = false
+        const val DEFAULT_THEME_DARK_MODE = "auto" // auto, light, dark
     }
 
     val serviceMode: Flow<ServiceMode> = context.settingsDataStore.data
@@ -114,6 +119,29 @@ class SettingsDataStore(private val context: Context) {
     suspend fun setSpringDampingRatio(ratio: Float) {
         context.settingsDataStore.edit { preferences ->
             preferences[SPRING_DAMPING_RATIO] = ratio.coerceIn(0.1f, 1.0f)
+        }
+    }
+
+    // ========== Theme Settings ==========
+    val themeInverted: Flow<Boolean> = context.settingsDataStore.data
+        .map { preferences ->
+            preferences[THEME_INVERTED] ?: DEFAULT_THEME_INVERTED
+        }
+
+    val themeDarkMode: Flow<String> = context.settingsDataStore.data
+        .map { preferences ->
+            preferences[THEME_DARK_MODE] ?: DEFAULT_THEME_DARK_MODE
+        }
+
+    suspend fun setThemeInverted(inverted: Boolean) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[THEME_INVERTED] = inverted
+        }
+    }
+
+    suspend fun setThemeDarkMode(mode: String) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[THEME_DARK_MODE] = mode
         }
     }
 }

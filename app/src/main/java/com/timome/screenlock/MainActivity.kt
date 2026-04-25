@@ -9,6 +9,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -19,6 +20,7 @@ import com.timome.screenlock.data.OnboardingDataStore
 import com.timome.screenlock.data.SettingsDataStore
 import com.timome.screenlock.service.NotificationHelper
 import com.timome.screenlock.ui.main.MainScreen
+import com.timome.screenlock.ui.main.SettingsRoute
 import com.timome.screenlock.ui.onboarding.OnboardingNavHost
 import com.timome.screenlock.ui.theme.ScreenlockTheme
 import kotlinx.coroutines.flow.first
@@ -36,17 +38,10 @@ class MainActivity : ComponentActivity() {
         NotificationHelper.createChannels(this)
 
         setContent {
-            ScreenlockTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    AppContent(
-                        onboardingDataStore = onboardingDataStore,
-                        settingsDataStore = settingsDataStore
-                    )
-                }
-            }
+            AppContent(
+                onboardingDataStore = onboardingDataStore,
+                settingsDataStore = settingsDataStore
+            )
         }
     }
 }
@@ -58,24 +53,51 @@ private fun AppContent(
 ) {
     var isOnboardingCompleted by remember { mutableStateOf<Boolean?>(null) }
 
+    // Theme settings
+    val themeInverted by settingsDataStore.themeInverted.collectAsState(
+        initial = SettingsDataStore.DEFAULT_THEME_INVERTED
+    )
+    val themeDarkMode by settingsDataStore.themeDarkMode.collectAsState(
+        initial = SettingsDataStore.DEFAULT_THEME_DARK_MODE
+    )
+
+    // Calculate dark theme state based on mode
+    val isDarkTheme = when (themeDarkMode) {
+        "light" -> false
+        "dark" -> true
+        else -> androidx.compose.foundation.isSystemInDarkTheme() // "auto"
+    }
+
     LaunchedEffect(Unit) {
         isOnboardingCompleted = onboardingDataStore.isOnboardingCompleted.first()
     }
 
-    when (isOnboardingCompleted) {
-        null -> {
-            // 加载中，显示空白或加载指示器
-        }
-        true -> {
-            MainScreen(settingsDataStore = settingsDataStore)
-        }
-        false -> {
-            OnboardingNavHost(
-                onboardingDataStore = onboardingDataStore,
-                onOnboardingComplete = {
-                    isOnboardingCompleted = true
+    ScreenlockTheme(
+        darkTheme = isDarkTheme,
+        inverted = themeInverted
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            when (isOnboardingCompleted) {
+                null -> {
+                    // 加载中
                 }
-            )
+                true -> {
+                    MainScreen(
+                        settingsDataStore = settingsDataStore
+                    )
+                }
+                false -> {
+                    OnboardingNavHost(
+                        onboardingDataStore = onboardingDataStore,
+                        onOnboardingComplete = {
+                            isOnboardingCompleted = true
+                        }
+                    )
+                }
+            }
         }
     }
 }
