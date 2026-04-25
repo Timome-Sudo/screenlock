@@ -35,11 +35,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
@@ -195,7 +199,7 @@ private fun SettingsMainMenu(
     ) {
         Text(
             text = "调整",
-            style = MaterialTheme.typography.headlineLarge,
+            style = typography.headlineLarge,
             color = MaterialTheme.colorScheme.onSurface
         )
 
@@ -203,7 +207,7 @@ private fun SettingsMainMenu(
 
         Text(
             text = "自定义锁屏设置",
-            style = MaterialTheme.typography.bodyLarge,
+            style = typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
@@ -282,13 +286,13 @@ private fun SettingCategoryCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
                     maxLines = 1
                 )
@@ -334,7 +338,7 @@ private fun LongPressSettings(
 
         Text(
             text = "长按设置",
-            style = MaterialTheme.typography.headlineMedium,
+            style = typography.headlineMedium,
             color = MaterialTheme.colorScheme.onSurface
         )
 
@@ -342,7 +346,7 @@ private fun LongPressSettings(
 
         Text(
             text = "选择1-2个角落作为解锁位置（需同时长按）",
-            style = MaterialTheme.typography.bodyMedium,
+            style = typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
@@ -414,7 +418,7 @@ private fun LongPressSettings(
 
         Text(
             text = "长按时间",
-            style = MaterialTheme.typography.titleMedium,
+            style = typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface
         )
 
@@ -422,7 +426,7 @@ private fun LongPressSettings(
 
         Text(
             text = "设置解锁需要长按的时间（秒）",
-            style = MaterialTheme.typography.bodyMedium,
+            style = typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
@@ -490,7 +494,7 @@ private fun ThemeSettings(
 
         Text(
             text = "主题设置",
-            style = MaterialTheme.typography.headlineMedium,
+            style = typography.headlineMedium,
             color = MaterialTheme.colorScheme.onSurface
         )
 
@@ -498,7 +502,7 @@ private fun ThemeSettings(
 
         Text(
             text = "自定义应用的主题外观",
-            style = MaterialTheme.typography.bodyMedium,
+            style = typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
@@ -507,7 +511,7 @@ private fun ThemeSettings(
         // 深色模式切换
         Text(
             text = "深色模式",
-            style = MaterialTheme.typography.titleMedium,
+            style = typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface
         )
 
@@ -585,7 +589,7 @@ private fun DarkModeOptionCard(
         ) {
             Text(
                 text = label,
-                style = MaterialTheme.typography.bodyLarge.copy(
+                style = typography.bodyLarge.copy(
                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
                 ),
                 color = if (selected) {
@@ -622,12 +626,12 @@ private fun ThemeToggleCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = description,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -647,6 +651,68 @@ private fun AboutPage(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var isCheckingUpdate by remember { mutableStateOf(false) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
+    var updateInfo by remember { mutableStateOf<Pair<String, String>?>(null) }
+
+    // 检查更新的函数
+    fun checkForUpdates() {
+        isCheckingUpdate = true
+        scope.launch {
+            try {
+                val client = okhttp3.OkHttpClient()
+                val request = okhttp3.Request.Builder()
+                    .url("https://api.github.com/repos/Timome-Sudo/screenlock/releases/latest")
+                    .build()
+                val response = client.newCall(request).execute()
+                if (response.isSuccessful) {
+                    val responseBody = response.body?.string()
+                    val json = com.google.gson.JsonParser.parseString(responseBody).asJsonObject
+                    val latestVersion = json.get("tag_name").asString
+                    val releaseNotes = json.get("body").asString
+                    
+                    // 比较版本号
+                    val currentVersion = "1.0"
+                    if (latestVersion != "v$currentVersion") {
+                        updateInfo = Pair(latestVersion, releaseNotes)
+                        showUpdateDialog = true
+                    } else {
+                        // 显示已是最新版本的提示
+                        android.widget.Toast.makeText(
+                            context,
+                            "已是最新版本",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(
+                    context,
+                    "检查更新失败: ${e.message}",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            } finally {
+                isCheckingUpdate = false
+            }
+        }
+    }
+
+    // 跳转到GitHub仓库
+    fun openGitHubRepository() {
+        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW)
+        intent.data = android.net.Uri.parse("https://github.com/Timome-Sudo/screenlock")
+        context.startActivity(intent)
+    }
+
+    // 下载最新版本
+    fun downloadLatestVersion() {
+        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW)
+        intent.data = android.net.Uri.parse("https://github.com/Timome-Sudo/screenlock/releases/latest")
+        context.startActivity(intent)
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -672,7 +738,7 @@ private fun AboutPage(
 
         Text(
             text = "屏幕锁",
-            style = MaterialTheme.typography.headlineMedium,
+            style = typography.headlineMedium,
             color = MaterialTheme.colorScheme.onSurface
         )
 
@@ -680,7 +746,7 @@ private fun AboutPage(
 
         Text(
             text = "版本 1.0",
-            style = MaterialTheme.typography.bodyMedium,
+            style = typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
@@ -688,10 +754,56 @@ private fun AboutPage(
 
         // 检查更新卡片
         Card(
-            onClick = { /* 暂不执行动作 */ },
+            onClick = { checkForUpdates() },
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            ),
+            elevation = CardDefaults.cardElevation(
+                defaultElevation = 2.dp,
+                pressedElevation = 4.dp
+            )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isCheckingUpdate) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_info),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = if (isCheckingUpdate) "检查中..." else "检查更新",
+                    style = typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // 仓库卡片
+        Card(
+            onClick = { openGitHubRepository() },
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            ),
+            elevation = CardDefaults.cardElevation(
+                defaultElevation = 2.dp,
+                pressedElevation = 4.dp
             )
         ) {
             Row(
@@ -708,24 +820,19 @@ private fun AboutPage(
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
-                    text = "检查更新",
-                    style = MaterialTheme.typography.bodyLarge,
+                    text = "GitHub 仓库",
+                    style = typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Icon(
+                    painter = painterResource(R.drawable.ic_spring),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // 仓库按钮
-        BouncyOutlinedTextField(
-            value = "仓库",
-            onValueChange = {},
-            readOnly = true,
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            labelText = "仓库"
-        )
 
         Spacer(modifier = Modifier.height(32.dp))
 
@@ -745,17 +852,80 @@ private fun AboutPage(
                 Column {
                     Text(
                         text = "作者",
-                        style = MaterialTheme.typography.bodySmall,
+                        style = typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = "timome",
-                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                        style = typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
         }
+    }
+
+    // 更新提示对话框
+    if (showUpdateDialog && updateInfo != null) {
+        val (version, releaseNotes) = updateInfo!!
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showUpdateDialog = false },
+            title = {
+                Text(
+                    text = "发现新版本",
+                    style = typography.headlineSmall
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "版本: $version",
+                        style = typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    Text(
+                        text = "更新内容:",
+                        style = typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .height(200.dp)
+                            .fillMaxWidth()
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outline,
+                                shape = MaterialTheme.shapes.small
+                            )
+                            .padding(8.dp)
+                    ) {
+                        val scrollState = rememberScrollState()
+                        Text(
+                            text = releaseNotes,
+                            style = typography.bodySmall,
+                            modifier = Modifier.verticalScroll(scrollState)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        downloadLatestVersion()
+                        showUpdateDialog = false
+                    }
+                ) {
+                    Text("下载")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showUpdateDialog = false }
+                ) {
+                    Text("取消")
+                }
+            }
+        )
     }
 }
 
@@ -823,12 +993,12 @@ private fun PositionCard(
             ) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = typography.titleMedium,
                     color = titleColor
                 )
                 Text(
                     text = description,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = typography.bodyMedium,
                     color = descColor
                 )
             }
